@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Δημιουργία Κουίζ από Εικόνα</title>
+    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Inter font family -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         body {
@@ -41,14 +43,17 @@
 <body class="p-4 md:p-8">
 
     <div class="container mx-auto">
-        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Δημιουργός Κουίζ με ΑΙ</h1>
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Δημιουργός Κουίζ με Gemini Vision</h1>
 
+        <!-- Loading & Status Messages -->
         <div id="status-message" class="hidden p-3 mb-4 rounded-lg text-sm text-center font-medium" role="alert"></div>
 
+        <!-- Step 1: Image Capture and Settings -->
         <div id="step-1" class="step-card">
             <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">1. Ρυθμίσεις και Φωτογραφία</h2>
             
             <div class="grid md:grid-cols-2 gap-6 mb-6">
+                <!-- Settings -->
                 <div class="space-y-4">
                     <div class="flex flex-col">
                         <label for="age-select" class="text-sm font-medium text-gray-600 mb-1">Ηλικία/Επίπεδο</label>
@@ -78,6 +83,7 @@
                     </div>
                 </div>
 
+                <!-- Image Input -->
                 <div class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-4">
                     <label for="image-input" class="cursor-pointer text-center">
                         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -96,35 +102,48 @@
             </button>
         </div>
 
+        <!-- Step 2: Quiz Display -->
         <div id="step-2" class="step-card hidden">
             <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">2. Απάντησε στο Κουίζ</h2>
             
             <p id="quiz-question" class="text-lg font-medium text-gray-800 mb-6"></p>
 
             <div id="quiz-options" class="space-y-3">
-                </div>
+                <!-- Options will be inserted here -->
+            </div>
             
             <div id="quiz-feedback" class="mt-6 p-4 rounded-lg text-sm font-medium hidden">
                 <p id="feedback-result" class="font-bold mb-1"></p>
                 <p id="feedback-explanation"></p>
             </div>
+
+            <button id="show-answer-btn" class="mt-6 w-full text-white font-semibold py-3 px-4 rounded-lg bg-indigo-500 hover:bg-indigo-600 transition disabled:opacity-50 hidden" disabled>
+                Εμφάνιση Απάντησης (Εάν δεν απαντηθεί)
+            </button>
         </div>
 
+        <!-- Step 3: Firebase Data Display -->
         <div id="step-3" class="step-card hidden">
             <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">3. Δεδομένα που Αποθηκεύτηκαν</h2>
             <div id="firestore-data" class="text-sm space-y-2 p-3 bg-gray-50 rounded-lg border">
-                </div>
+                <!-- Data will be inserted here -->
+            </div>
         </div>
         
     </div>
 
+    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // --- Global Firebase/Auth/App Variables ---
+        // --- Configuration ---
+        // Κλειδί Gemini API. Το ορίζουμε ως κενή συμβολοσειρά για να το παρέχει αυτόματα το Canvas.
+        const GEMINI_API_KEY = ""; 
+        
+        // Global Firebase/Auth/App Variables
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyCFslMC6avCrHcrLfxtzNv_yb362ZgajKY",
@@ -137,14 +156,14 @@
         };
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         
-        setLogLevel('debug'); 
+        setLogLevel('debug'); // Enable Firestore logging
 
         let app, db, auth, userId = null;
         let originalImageBase64 = null;
         let downscaledImageBase64 = null;
         let currentQuizData = null;
         let userLocation = { lat: null, lon: null };
-        let currentDocRef = null; 
+        let currentDocRef = null; // To store the reference of the quiz document
 
         // --- UI Elements ---
         const statusMessage = document.getElementById('status-message');
@@ -164,7 +183,7 @@
         function showStatus(message, type = 'info') {
             statusMessage.textContent = message;
             statusMessage.className = `p-3 mb-4 rounded-lg text-sm text-center font-medium`;
-            statusMessage.classList.remove('hidden');
+            statusMessage.classList.add('block');
             
             if (type === 'error') {
                 statusMessage.classList.add('bg-red-100', 'text-red-800');
@@ -172,7 +191,7 @@
                 statusMessage.classList.add('bg-green-100', 'text-green-800');
             } else if (type === 'loading') {
                 statusMessage.classList.add('bg-yellow-100', 'text-yellow-800');
-            } else { 
+            } else { // info (default)
                 statusMessage.classList.add('bg-blue-100', 'text-blue-800');
             }
         }
@@ -203,7 +222,7 @@
         }
 
         // --- Image Resizing/Downscaling ---
-        function resizeImage(base64Image, maxWidth = 400, maxHeight = 400) {
+        function resizeImage(base64Image, maxWidth = 300, maxHeight = 300) {
             return new Promise((resolve) => {
                 const img = new Image();
                 img.onload = () => {
@@ -228,6 +247,7 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
                     
+                    // Convert canvas content to JPEG Base64, lower quality for smaller size
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.7); 
                     resolve(dataUrl);
                 };
@@ -244,7 +264,7 @@
                 
                 await new Promise((resolve, reject) => {
                     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-                        unsubscribe(); 
+                        unsubscribe(); // Stop listening after the first state change
                         if (initialAuthToken) {
                             try {
                                 await signInWithCustomToken(auth, initialAuthToken);
@@ -286,16 +306,17 @@
                 imageThumbnail: downscaledImageBase64,
                 latitude: userLocation.lat,
                 longitude: userLocation.lon,
-                quizData: currentQuizData, 
+                quizData: currentQuizData, // This will be null on first save
                 userAnswer: null,
                 isCorrect: null
             };
 
             try {
                 if (step === 'generation') {
+                    // Initial save: Only settings and image/location
                     const docRef = await addDoc(collection(db, collectionPath), {
                         ...dataToSave,
-                        quizData: currentQuizData 
+                        quizData: currentQuizData // Now quizData is available
                     });
                     currentDocRef = docRef;
                     console.log("Document written with ID: ", docRef.id);
@@ -303,6 +324,7 @@
                     displayFirestoreData(docRef.id, dataToSave);
 
                 } else if (step === 'answer' && currentDocRef) {
+                    // Update save: Add user's answer and result
                     const selectedOption = document.querySelector('button[data-selected="true"]');
                     const predictedAnswer = selectedOption ? selectedOption.textContent.trim() : 'Δεν απαντήθηκε';
                     const isCorrect = predictedAnswer === currentQuizData.correctAnswer;
@@ -340,7 +362,8 @@
             step3.classList.remove('hidden');
         }
 
-        // --- Gemini API Call (UPDATED - NO WHILE LOOP) ---
+
+        // --- Gemini API Call ---
         async function generateQuiz() {
             if (!downscaledImageBase64 || !userId) return;
 
@@ -352,7 +375,7 @@
             const language = document.getElementById('language-input').value;
             
             const model = "gemini-2.5-flash-preview-09-2025";
-            const apiKey = "AIzaSyBwbj_B_tiSNOLsWMp2kJUgZsaWmqkoKPQ";
+            const apiKey = "AIzaSyBh7x2Y6ljBEWPyQf7mb80yAa9wMqCouzc"; // Χρήση του κλειδιού API (είτε κενό είτε αυτό που δόθηκε)
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
             const mimeType = downscaledImageBase64.match(/data:(.*?);/)?.[1] || 'image/jpeg';
             const base64Data = downscaledImageBase64.split(',')[1];
@@ -399,6 +422,9 @@
                 }
             };
 
+            let response = null;
+            let attempts = 0;
+            
             try {
                 const fetchResponse = await fetch(apiUrl, {
                     method: 'POST',
@@ -407,26 +433,44 @@
                 });
                 
                 if (!fetchResponse.ok) {
+                    const errorBody = await fetchResponse.text();
+                    console.error(`Attempt ${attempts}: HTTP Error! Status: ${fetchResponse.status}. Body: ${errorBody}`);
                     throw new Error(`HTTP error! status: ${fetchResponse.status}`);
                 }
                 
-                const response = await fetchResponse.json();
-                
-                if (response && response.candidates && response.candidates.length > 0 && response.candidates[0].content.parts[0].text) {
+                response = await fetchResponse.json();
+                break; // Success
+            } catch (error) {
+                console.error(`Attempt ${attempts} failed:`, error);
+                if (attempts < maxRetries) {
+                    const delay = Math.pow(2, attempts) * 1000;
+                    // Exponential backoff delay
+                    await new Promise(res => setTimeout(res, delay));
+                } else {
+                    showStatus("Αποτυχία λήψης απάντησης από το Gemini μετά από 5 προσπάθειες. Ελέγξτε την κονσόλα για λεπτομέρειες.", 'error');
+                    throw new Error(`Failed to fetch from Gemini API after ${maxRetries} attempts.`);
+                }
+            }
+        
+            
+            disableUI(false);
+            
+            if (response && response.candidates && response.candidates.length > 0 && response.candidates[0].content.parts[0].text) {
+                try {
                     const jsonText = response.candidates[0].content.parts[0].text;
                     currentQuizData = JSON.parse(jsonText);
                     
+                    // Proceed to Step 2
                     renderQuiz(currentQuizData);
-                    await saveQuizData('generation'); 
-                } else {
-                    throw new Error("Η απάντηση από το Gemini δεν είχε τη σωστή μορφή.");
-                }
+                    await saveQuizData('generation'); // Save generated quiz data to Firestore
 
-            } catch (error) {
-                console.error("Gemini API Error:", error);
-                showStatus(`Σφάλμα δημιουργίας κουίζ: ${error.message}`, 'error');
-            } finally {
-                disableUI(false);
+                } catch (e) {
+                    console.error("JSON Parsing Error:", e);
+                    showStatus(`Σφάλμα ανάλυσης JSON από το Gemini: ${e.message}. Δοκιμάστε ξανά.`, 'error');
+                }
+            } else {
+                showStatus("Αποτυχία λήψης απάντησης από το Gemini. Ελέγξτε την κονσόλα.", 'error');
+                console.error("Gemini Response Error:", response);
             }
         }
         
@@ -449,18 +493,21 @@
         }
 
         function handleAnswer(selectedButton, selectedOption) {
-            if (document.querySelector('.button-quiz.disabled')) return; 
+            if (document.querySelector('.button-quiz.disabled')) return; // Already answered
 
             const isCorrect = selectedOption === currentQuizData.correctAnswer;
             
+            // Disable all buttons and mark them as answered
             document.querySelectorAll('.button-quiz').forEach(btn => {
                 btn.disabled = true;
                 btn.classList.add('disabled', 'cursor-not-allowed');
                 
+                // Identify correct answer
                 if (btn.textContent.trim() === currentQuizData.correctAnswer) {
                     btn.classList.add('bg-green-100', 'border-green-500', 'font-semibold');
                 }
                 
+                // Mark user's selection
                 if (btn === selectedButton) {
                     btn.setAttribute('data-selected', 'true');
                     if (isCorrect) {
@@ -473,6 +520,7 @@
                 }
             });
 
+            // Show feedback
             quizFeedback.classList.remove('hidden');
             quizFeedback.classList.add(isCorrect ? 'bg-green-100/70' : 'bg-red-100/70', isCorrect ? 'text-green-800' : 'text-red-800');
             document.getElementById('feedback-result').textContent = isCorrect ? 'ΣΩΣΤΗ ΑΠΑΝΤΗΣΗ!' : 'ΛΑΘΟΣ ΑΠΑΝΤΗΣΗ.';
@@ -481,6 +529,7 @@
                 <span class="font-bold">Επεξήγηση:</span> ${currentQuizData.explanation}
             `;
             
+            // Save the result to Firestore
             saveQuizData('answer');
         }
 
@@ -495,8 +544,10 @@
                     imagePreview.src = originalImageBase64;
                     imagePreview.classList.remove('hidden');
 
+                    // Downscale the image for API and Firestore storage
                     downscaledImageBase64 = await resizeImage(originalImageBase64);
                     
+                    // Enable button
                     generateBtn.disabled = false;
                     showStatus("Η εικόνα φορτώθηκε. Είστε έτοιμοι για δημιουργία κουίζ.", 'info');
                 };
@@ -507,7 +558,10 @@
         generateBtn.addEventListener('click', generateQuiz);
 
         window.onload = () => {
+            // 1. Initialize Firebase and Auth
             initializeFirebase();
+            
+            // 2. Get Geolocation (non-blocking)
             getLocation();
         };
 
